@@ -362,6 +362,62 @@ def custom_properties():
     return _render_custom_properties()
 
 
+@admi.route("/admin/customproperty/delete/<label>", methods=["POST"])
+@user_login_required
+@admin_required
+def custom_property_delete(label):
+    calibredb_binary = _get_calibredb_binary()
+    if not calibredb_binary:
+        flash(_("Calibre's calibredb binary could not be found. Configure the Calibre binaries path or install calibre."),
+              category="error")
+        return redirect(url_for('admin.custom_properties'))
+
+    my_env = os.environ.copy()
+    library_path = config.get_book_path() or config.config_calibre_dir
+    if not library_path:
+        flash(_("Calibre library path is not configured."), category="error")
+        return redirect(url_for('admin.custom_properties'))
+    if config.config_calibre_split:
+        my_env['CALIBRE_OVERRIDE_DATABASE_PATH'] = os.path.join(config.config_calibre_dir, "metadata.db")
+
+    command = [calibredb_binary, 'remove_custom_column', '--force', '--with-library', library_path, label]
+    
+    quotes = [0, 4]
+    process = process_open(command, quotes=quotes, env=my_env)
+    output, error = process.communicate()
+    if process.returncode != 0:
+        flash((error or output or _("Failed to delete the custom property.")).strip(), category="error")
+        return redirect(url_for('admin.custom_properties'))
+
+    old_session = g.pop("lib_sql", None)
+    if old_session:
+        old_session.remove()
+    calibre_db.reconnect_db(config, ub.app_DB_path)
+    flash(_("Custom property deleted successfully."), category="success")
+    return redirect(url_for('admin.custom_properties'))
+
+
+@admi.route("/admin/customproperty/edit/<label>", methods=["POST"])
+@user_login_required
+@admin_required
+def custom_property_edit(label):
+    new_name = request.form.get("name", "").strip()
+    if not new_name:
+        flash(_("Please provide a display name."), category="error")
+        return redirect(url_for('admin.custom_properties'))
+        
+    column = calibre_db.session.query(db.CustomColumns).filter(db.CustomColumns.label == label).first()
+    if not column:
+        flash(_("Custom property not found."), category="error")
+        return redirect(url_for('admin.custom_properties'))
+        
+    column.name = new_name
+    calibre_db.session.commit()
+    
+    flash(_("Custom property %(name)s updated successfully.", name=new_name), category="success")
+    return redirect(url_for('admin.custom_properties'))
+
+
 @admi.route("/admin/config", methods=["GET"])
 @user_login_required
 @admin_required
