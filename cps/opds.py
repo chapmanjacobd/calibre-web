@@ -258,14 +258,11 @@ def feed_custom_property_index(column_id):
                .join(cc_class.books)
                .filter(calibre_db.common_filters())
                .group_by(func.upper(func.substr(cc_class.value, 1, 1)))
+               .order_by(func.upper(func.substr(cc_class.value, 1, 1)))
                .all())
-    elements = []
-    shift = 0
-    if off == 0 and entries:
-        elements.append({'id': "00", 'name': _("All")})
-        shift = 1
-    for entry in entries[off + shift - 1:int(off + int(config.config_books_per_page) - shift)]:
-        elements.append({'id': entry.id, 'name': entry.id})
+    elements = [{'id': "00", 'name': _("All")}]
+    elements.extend({'id': entry.id, 'name': entry.id} for entry in entries)
+    elements = elements[off:off + int(config.config_books_per_page)]
     pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
                             len(entries) + 1)
     cc = calibre_db.get_cc_columns(config, filter_config_custom_read=True)
@@ -287,15 +284,16 @@ def feed_custom_property_letter(column_id, book_id):
     if book_id != "00":
         query = query.filter(func.upper(func.substr(cc_class.value, 1, 1)) == book_id)
     entries = query.group_by(cc_class.id).order_by(cc_class.value)
-    pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
-                            entries.count())
-    items = [db.Category(format_custom_column_value(column, entry.value), entry.id)
-             for entry in entries.offset(off).limit(config.config_books_per_page).all()]
+    entry_count = entries.count()
     none_count = (calibre_db.session.query(db.Books)
                   .filter(~getattr(db.Books, 'custom_column_' + str(column.id)).any())
                   .filter(calibre_db.common_filters())
                   .count())
-    if none_count and book_id == "00":
+    pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
+                            entry_count + int(bool(none_count and book_id == "00")))
+    items = [db.Category(format_custom_column_value(column, entry.value), entry.id)
+             for entry in entries.offset(off).limit(config.config_books_per_page).all()]
+    if none_count and book_id == "00" and off <= entry_count < off + int(config.config_books_per_page):
         items.append(db.Category(_("None"), "none"))
     cc = calibre_db.get_cc_columns(config, filter_config_custom_read=True)
     return render_xml_template('feed.xml', listelements=items, folder='opds.feed_custom_property',
