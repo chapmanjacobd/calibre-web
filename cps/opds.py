@@ -278,21 +278,38 @@ def feed_custom_property_letter(column_id, book_id):
         abort(404)
     off = int(request.args.get("offset") or 0)
     cc_class = db.cc_classes[column.id]
-    query = (calibre_db.session.query(cc_class)
-             .join(cc_class.books)
-             .filter(calibre_db.common_filters()))
-    if book_id != "00":
-        query = query.filter(func.upper(func.substr(cc_class.value, 1, 1)) == book_id)
-    entries = query.group_by(cc_class.id).order_by(cc_class.value)
-    entry_count = entries.count()
-    none_count = (calibre_db.session.query(db.Books)
-                  .filter(~getattr(db.Books, 'custom_column_' + str(column.id)).any())
-                  .filter(calibre_db.common_filters())
-                  .count())
-    pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
-                            entry_count + int(bool(none_count and book_id == "00")))
-    items = [db.Category(format_custom_column_value(column, entry.value), entry.id)
-             for entry in entries.offset(off).limit(config.config_books_per_page).all()]
+    if getattr(column, 'normalized', False):
+        query = (calibre_db.session.query(cc_class)
+                 .join(cc_class.books)
+                 .filter(calibre_db.common_filters()))
+        if book_id != "00":
+            query = query.filter(func.upper(func.substr(cc_class.value, 1, 1)) == book_id)
+        entries = query.group_by(cc_class.id).order_by(cc_class.value)
+        entry_count = entries.count()
+        none_count = (calibre_db.session.query(db.Books)
+                      .filter(~getattr(db.Books, 'custom_column_' + str(column.id)).any())
+                      .filter(calibre_db.common_filters())
+                      .count())
+        pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
+                                entry_count + int(bool(none_count and book_id == "00")))
+        items = [db.Category(format_custom_column_value(column, entry.value), entry.id)
+                 for entry in entries.offset(off).limit(config.config_books_per_page).all()]
+    else:
+        query = (calibre_db.session.query(cc_class.value)
+                 .join(cc_class.books)
+                 .filter(calibre_db.common_filters()))
+        if book_id != "00":
+            query = query.filter(func.upper(func.substr(cc_class.value, 1, 1)) == book_id)
+        entries = query.group_by(cc_class.value).order_by(cc_class.value)
+        entry_count = entries.count()
+        none_count = (calibre_db.session.query(db.Books)
+                      .filter(~getattr(db.Books, 'custom_column_' + str(column.id)).any())
+                      .filter(calibre_db.common_filters())
+                      .count())
+        pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
+                                entry_count + int(bool(none_count and book_id == "00")))
+        items = [db.Category(format_custom_column_value(column, entry[0]), str(entry[0]))
+                 for entry in entries.offset(off).limit(config.config_books_per_page).all()]
     if none_count and book_id == "00" and off <= entry_count < off + int(config.config_books_per_page):
         items.append(db.Category(_("None"), "none"))
     cc = calibre_db.get_cc_columns(config, filter_config_custom_read=True)
@@ -311,7 +328,23 @@ def feed_custom_property(column_id, book_id):
     if book_id == 'none':
         db_filter = ~relation.any()
     else:
-        db_filter = relation.any(db.cc_classes[column.id].id == book_id)
+        if getattr(column, 'normalized', False):
+            db_filter = relation.any(db.cc_classes[column.id].id == book_id)
+        else:
+            val = book_id
+            if column.datatype == 'bool':
+                val = (str(book_id).lower() == 'true')
+            elif column.datatype == 'int':
+                try: val = int(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'float':
+                try: val = float(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'datetime':
+                from datetime import datetime
+                try: val = datetime.strptime(book_id[:19], "%Y-%m-%d %H:%M:%S")
+                except ValueError: abort(404)
+            db_filter = relation.any(db.cc_classes[column.id].value == val)
     entries, __, pagination = calibre_db.fill_indexpage((int(off) / (int(config.config_books_per_page)) + 1), 0,
                                                         db.Books,
                                                         db_filter,

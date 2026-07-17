@@ -376,14 +376,24 @@ def generate_char_list(entries): # data_colum, db_link):
 
 def get_custom_column_entries(column, order):
     cc_class = db.cc_classes[column.id]
-    entries = (calibre_db.session.query(cc_class, func.count(db.Books.id).label('count'))
-               .join(cc_class.books)
-               .filter(calibre_db.common_filters())
-               .group_by(cc_class.id)
-               .order_by(order)
-               .all())
-    formatted_entries = [[db.Category(format_custom_column_value(column, entry[0].value), entry[0].id), entry[1]]
-                         for entry in entries]
+    if getattr(column, 'normalized', False):
+        entries = (calibre_db.session.query(cc_class, func.count(db.Books.id).label('count'))
+                   .join(cc_class.books)
+                   .filter(calibre_db.common_filters())
+                   .group_by(cc_class.id)
+                   .order_by(order)
+                   .all())
+        formatted_entries = [[db.Category(format_custom_column_value(column, entry[0].value), entry[0].id), entry[1]]
+                             for entry in entries]
+    else:
+        entries = (calibre_db.session.query(cc_class.value, func.count(db.Books.id).label('count'))
+                   .join(cc_class.books)
+                   .filter(calibre_db.common_filters())
+                   .group_by(cc_class.value)
+                   .order_by(order)
+                   .all())
+        formatted_entries = [[db.Category(format_custom_column_value(column, entry[0]), str(entry[0])), entry[1]]
+                             for entry in entries]
     no_value_count = (calibre_db.session.query(db.Books)
                       .filter(~getattr(db.Books, custom_column_page(column.id)).any())
                       .filter(calibre_db.common_filters())
@@ -786,18 +796,37 @@ def custom_property_books(column_id, book_id, page):
                                                                 db.Series)
         value_name = _("None")
     else:
-        value = calibre_db.session.query(db.cc_classes[column_id]).filter(db.cc_classes[column_id].id == book_id).first()
-        if not value:
-            abort(404)
+        if getattr(column, 'normalized', False):
+            value = calibre_db.session.query(db.cc_classes[column_id]).filter(db.cc_classes[column_id].id == book_id).first()
+            if not value:
+                abort(404)
+            val = value.value
+            filter_expr = relation.any(db.cc_classes[column_id].id == book_id)
+        else:
+            val = book_id
+            if column.datatype == 'bool':
+                val = (str(book_id).lower() == 'true')
+            elif column.datatype == 'int':
+                try: val = int(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'float':
+                try: val = float(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'datetime':
+                from datetime import datetime
+                try: val = datetime.strptime(book_id[:19], "%Y-%m-%d %H:%M:%S")
+                except ValueError: abort(404)
+            filter_expr = relation.any(db.cc_classes[column_id].value == val)
+
         entries, random, pagination = calibre_db.fill_indexpage(page, 0,
                                                                 db.Books,
-                                                                relation.any(db.cc_classes[column_id].id == book_id),
+                                                                filter_expr,
                                                                 [order[0][0], db.Series.name, db.Books.series_index],
                                                                 True, config.config_read_column,
                                                                 db.books_series_link,
                                                                 db.Books.id == db.books_series_link.c.book,
                                                                 db.Series)
-        value_name = format_custom_column_value(column, value.value)
+        value_name = format_custom_column_value(column, val)
     return render_title_template('index.html', random=random, entries=entries, pagination=pagination, id=book_id,
                                  title=_("%(column)s: %(name)s", column=column.name, name=value_name),
                                  page=page_key, order=order[1])
