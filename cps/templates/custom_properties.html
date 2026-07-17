@@ -47,11 +47,7 @@
         <label for="name">{{_('Display Name')}}</label>
         <input type="text" class="form-control" id="name" name="name" value="{{ form_data.get('name', '') }}" required>
       </div>
-      <div class="form-group">
-        <label for="label">{{_('Machine Label')}}</label>
-        <input type="text" class="form-control" id="label" name="label" value="{{ form_data.get('label', '') }}" pattern="[a-z][a-z0-9_]*" required>
-        <p class="help-block">{{_('Used internally by Calibre. Start with a lowercase letter and use only lowercase letters, numbers, and underscores.')}}</p>
-      </div>
+      <input type="hidden" id="label" name="label" value="{{ form_data.get('label', '') }}">
       <div class="form-group">
         <label for="datatype">{{_('Property Type')}}</label>
         <select class="form-control" id="datatype" name="datatype">
@@ -76,4 +72,39 @@
     </form>
   </div>
 </div>
+{% endblock %}
+{% block js %}
+<script>
+    $(document).ready(function() {
+        var $datatype = $('#datatype');
+        var $enumValuesGroup = $('#enum_values').closest('.form-group');
+        var $isMultipleGroup = $('#is_multiple').closest('.checkbox');
+
+        function updateVisibility() {
+            var val = $datatype.val();
+            if (val === 'enumeration') {
+                $enumValuesGroup.show();
+            } else {
+                $enumValuesGroup.hide();
+            }
+            if (val === 'text') {
+                $isMultipleGroup.show();
+            } else {
+                $isMultipleGroup.hide();
+            }
+        }
+
+        $datatype.on('change', updateVisibility);
+        updateVisibility();
+
+        $('#name').on('input', function() {
+            var name = $(this).val();
+            var label = name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            if (label.length > 0 && !label.charAt(0).match(/[a-z]/)) {
+                label = 'cw_' + label;
+            }
+            $('#label').val(label);
+        });
+    });
+</script>
 {% endblock %}

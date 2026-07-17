@@ -772,7 +772,8 @@ def custom_property_books(column_id, book_id, page):
     if not column or not current_user.check_visibility(constants.SIDEBAR_CATEGORY):
         abort(404)
     page_key = custom_column_page(column_id)
-    order = get_sort_function('stored', page_key)
+    sort_param = request.args.get('sort_param', 'stored').lower()
+    order = get_sort_function(sort_param, page_key)
     relation = getattr(db.Books, page_key)
     if book_id == 'none':
         entries, random, pagination = calibre_db.fill_indexpage(page, 0,

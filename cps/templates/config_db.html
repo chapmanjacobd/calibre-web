@@ -28,11 +28,6 @@
          </span>
        </div>
        </div>
-      <div class="alert alert-info" role="alert">
-        <strong>{{_('Custom Properties')}}</strong>
-        {{_('Library-specific fields such as participants, location, or production notes are powered by Calibre custom columns.')}}
-        <a href="{{ url_for('admin.custom_properties') }}">{{_('Manage Custom Properties')}}</a>.
-      </div>
     {% if feature_support['gdrive'] %}
       <div class="form-group required">
         <input type="checkbox" id="config_use_google_drive" name="config_use_google_drive" data-control="gdrive_settings" {% if config.config_use_google_drive %}checked{% endif %} >
