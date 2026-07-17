@@ -369,6 +369,36 @@ def table_get_custom_enum(c_id):
     return make_response(jsonify(ret))
 
 
+@editbook.route("/ajax/toggle_cc/<int:book_id>/<int:column_id>", methods=['POST'])
+@login_required_if_no_ano
+@edit_required
+def toggle_cc(book_id, column_id):
+    book = calibre_db.session.query(db.Books).filter(db.Books.id == book_id).first()
+    if not book:
+        return "Book not found", 404
+        
+    cc = calibre_db.session.query(db.CustomColumns).filter(db.CustomColumns.id == column_id).first()
+    if not cc or cc.datatype != 'bool':
+        return "Invalid column", 400
+        
+    cc_string = "custom_column_" + str(column_id)
+    current_value = False
+    if len(getattr(book, cc_string)) > 0:
+        current_value = getattr(book, cc_string)[0].value
+        
+    new_val = False if current_value else True
+    to_save = {cc_string: 'True' if new_val else 'False'}
+    
+    try:
+        edit_single_cc_data(book_id, book, column_id, to_save)
+        calibre_db.session.commit()
+    except Exception as ex:
+        log.error("Could not toggle custom column: %e", ex)
+        return "Error", 400
+        
+    return ""
+
+
 @editbook.route("/ajax/editbooks/<param>", methods=['POST'])
 @login_required_if_no_ano
 @edit_required
