@@ -92,19 +92,20 @@ def get_sidebar_config(kwargs=None):
     sidebar.append({"glyph": "glyphicon-file", "text": _('File formats'), "link": 'web.formats_list', "id": "format",
                     "visibility": constants.SIDEBAR_FORMAT, 'public': True, "no_param":True,
                     "page": "format", "show_text": _('Show File Formats Section'), "config_show": True})
-    for col in calibre_db.get_browseable_cc_columns(config):
-        sidebar.append({
-            "glyph": "glyphicon-tag",
-            "text": col.name,
-            "link": 'web.custom_property_list',
-            "id": 'custom_column_' + str(col.id),
-            "visibility": constants.SIDEBAR_CATEGORY,
-            'public': True,
-            "page": 'custom_column_' + str(col.id),
-            "show_text": _('Show %(column)s Section', column=col.name),
-            "config_show": False,
-            "url_kwargs": {'column_id': col.id},
-        })
+    if config.db_configured and calibre_db.session:
+        for col in calibre_db.get_browseable_cc_columns(config):
+            sidebar.append({
+                "glyph": "glyphicon-tag",
+                "text": col.name,
+                "link": 'web.custom_property_list',
+                "id": 'custom_column_' + str(col.id),
+                "visibility": constants.SIDEBAR_CATEGORY,
+                'public': True,
+                "page": 'custom_column_' + str(col.id),
+                "show_text": _('Show %(column)s Section', column=col.name),
+                "config_show": False,
+                "url_kwargs": {'column_id': col.id},
+            })
     sidebar.append(
         {"glyph": "glyphicon-folder-open", "text": _('Archived Books'), "link": 'web.books_list', "id": "archived",
          "visibility": constants.SIDEBAR_ARCHIVED, 'public': (not current_user.is_anonymous), "page": "archived",
