@@ -1150,3 +1150,20 @@ def set_all_metadata_dirty():
                                               set_dirty=True,
                                               task_message=N_("Queue all books for metadata backup")),
                      hidden=False)
+
+
+def get_browseable_custom_column(column_id):
+    for column in calibre_db.get_browseable_cc_columns(config):
+        if column.id == column_id:
+            return column
+    return None
+
+
+def custom_column_page(column_id):
+    return 'custom_column_' + str(column_id)
+
+
+def format_custom_column_value(column, value):
+    if column.datatype == 'rating':
+        return '%.1f' % (value / 2)
+    return str(value)

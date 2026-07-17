@@ -162,8 +162,7 @@ def _create_custom_property():
     if not form_data["label"] or not form_data["name"]:
         flash(_("Please provide both a property label and display name."), category="error")
         return _render_custom_properties(form_data)
-    if re.match(r'^\w*$', form_data["label"]) is None or not form_data["label"][0].isalpha() \
-            or form_data["label"].lower() != form_data["label"]:
+    if not re.match(r'^[a-z][a-z0-9_]*$', form_data["label"]):
         flash(_("The property label must start with a letter and use only lowercase letters, numbers, and underscores."),
               category="error")
         return _render_custom_properties(form_data)

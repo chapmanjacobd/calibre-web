@@ -103,7 +103,7 @@ def get_sidebar_config(kwargs=None):
             "page": 'custom_column_' + str(col.id),
             "show_text": _('Show %(column)s Section', column=col.name),
             "config_show": False,
-            "url": url_for('web.custom_property_list', column_id=col.id),
+            "url_kwargs": {'column_id': col.id},
         })
     sidebar.append(
         {"glyph": "glyphicon-folder-open", "text": _('Archived Books'), "link": 'web.books_list', "id": "archived",

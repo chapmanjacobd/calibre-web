@@ -47,7 +47,8 @@ from .gdriveutils import getFileFromEbooksFolder, do_gdrive_download
 from .helper import check_valid_domain, check_email, check_username, \
     get_book_cover, get_series_cover_thumbnail, get_download_link, send_mail, generate_random_password, \
     send_registration_mail, check_send_to_ereader, check_read_formats, tags_filters, reset_password, valid_email, \
-    edit_book_read_status, valid_password
+    edit_book_read_status, valid_password, get_browseable_custom_column, format_custom_column_value, \
+    custom_column_page
 from .pagination import Pagination
 from .redirect import get_redirect_location
 from .cw_babel import get_available_locale
@@ -370,23 +371,6 @@ def generate_char_list(entries): # data_colum, db_link):
         if upper_char not in char_list:
             char_list.append(upper_char)
     return char_list
-
-
-def get_browseable_custom_column(column_id):
-    for column in calibre_db.get_browseable_cc_columns(config):
-        if column.id == column_id:
-            return column
-    return None
-
-
-def custom_column_page(column_id):
-    return 'custom_column_' + str(column_id)
-
-
-def format_custom_column_value(column, value):
-    if column.datatype == 'rating':
-        return '%.1f' % (value / 2)
-    return str(value)
 
 
 def get_custom_column_entries(column, order):

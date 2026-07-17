@@ -33,7 +33,8 @@ from sqlalchemy.exc import InvalidRequestError, OperationalError
 
 from . import logger, config, db, calibre_db, ub, isoLanguages, constants
 from .usermanagement import requires_basic_auth_if_no_ano, auth
-from .helper import get_download_link, get_book_cover
+from .helper import get_download_link, get_book_cover, \
+    get_browseable_custom_column, format_custom_column_value
 from .pagination import Pagination
 from .web import render_read_books
 
@@ -41,19 +42,6 @@ from .web import render_read_books
 opds = Blueprint('opds', __name__)
 
 log = logger.create()
-
-
-def get_browseable_custom_column(column_id):
-    for column in calibre_db.get_browseable_cc_columns(config):
-        if column.id == column_id:
-            return column
-    return None
-
-
-def format_custom_column_value(column, value):
-    if column.datatype == 'rating':
-        return '%.1f' % (value / 2)
-    return str(value)
 
 
 @opds.route("/opds/")
