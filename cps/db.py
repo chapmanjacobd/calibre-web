@@ -1078,7 +1078,7 @@ class CalibreDB:
         return cc
 
     def get_browseable_cc_columns(self, config):
-        sidebar_settings = config.config_custom_sidebar_columns or {}
+        sidebar_settings = getattr(config, "config_custom_sidebar_columns", None) or {}
         browseable = []
         for col in self.get_cc_columns(config, filter_config_custom_read=True):
             str_id = str(col.id)
