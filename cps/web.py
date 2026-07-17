@@ -1182,19 +1182,20 @@ def ratings_list():
         else:
             order = db.Ratings.rating.asc()
             order_no = 1
-        entries = calibre_db.session.query(db.Ratings, func.count('books_ratings_link.book').label('count'),
-                                           (db.Ratings.rating / 2).label('name')) \
+        entries = calibre_db.session.query(db.Ratings, func.count('books_ratings_link.book').label('count')) \
             .join(db.books_ratings_link).join(db.Books).filter(calibre_db.common_filters()) \
             .filter(db.Ratings.rating > 0) \
             .group_by(text('books_ratings_link.rating')).order_by(order).all()
+        formatted_entries = [[db.Category('%.1f' % (entry[0].rating / 2), entry[0].id, rating=entry[0].rating), entry[1]]
+                             for entry in entries]
         no_rating_count = (calibre_db.session.query(db.Books)
                            .outerjoin(db.books_ratings_link).outerjoin(db.Ratings)
                            .filter(or_(db.Ratings.rating == None, db.Ratings.rating == 0))
                            .filter(calibre_db.common_filters())
                            .count())
         if no_rating_count:
-            entries.append([db.Category(_("None"), "-1", -1), no_rating_count])
-        entries = sorted(entries, key=lambda x: x[0].rating, reverse=not order_no)
+            formatted_entries.append([db.Category(_("None"), "-1", -1), no_rating_count])
+        entries = sorted(formatted_entries, key=lambda x: x[0].rating, reverse=not order_no)
         return render_title_template('list.html', entries=entries, folder='web.books_list', charlist=list(),
                                      title=_("Ratings list"), page="ratingslist", data="ratings", order=order_no)
     else:
