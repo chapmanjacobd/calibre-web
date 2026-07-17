@@ -1164,6 +1164,8 @@ def custom_column_page(column_id):
 
 
 def format_custom_column_value(column, value):
+    if value is None:
+        return ''
     if column.datatype == 'rating':
         return '%.1f' % (value / 2)
     return str(value)

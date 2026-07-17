@@ -367,9 +367,10 @@ def get_matching_tags():
 def generate_char_list(entries): # data_colum, db_link):
     char_list = list()
     for entry in entries:
-        upper_char = entry[0].name[0].upper()
-        if upper_char not in char_list:
-            char_list.append(upper_char)
+        if entry[0].name:
+            upper_char = entry[0].name[0].upper()
+            if upper_char not in char_list:
+                char_list.append(upper_char)
     return char_list
 
 

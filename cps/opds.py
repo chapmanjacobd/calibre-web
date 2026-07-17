@@ -308,7 +308,7 @@ def feed_custom_property(column_id, book_id):
     column = get_browseable_custom_column(column_id)
     if not column or not auth.current_user().check_visibility(constants.SIDEBAR_CATEGORY):
         abort(404)
-    off = request.args.get("offset") or 0
+    off = int(request.args.get("offset") or 0)
     relation = getattr(db.Books, 'custom_column_' + str(column.id))
     if book_id == 'none':
         db_filter = ~relation.any()
