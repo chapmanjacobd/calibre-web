@@ -104,6 +104,7 @@ class _Settings(_Base):
     config_default_language = Column(String(3), default="all")
     config_default_locale = Column(String(2), default="en")
     config_columns_to_ignore = Column(String)
+    config_custom_sidebar_columns = Column(JSON, default={})
 
     config_denied_tags = Column(String, default="")
     config_allowed_tags = Column(String, default="")

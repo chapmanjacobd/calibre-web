@@ -18,7 +18,7 @@
             <th>{{_('Label')}}</th>
             <th>{{_('Type')}}</th>
             <th>{{_('Multiple')}}</th>
-            <th>{{_('Visible')}}</th>
+            <th>{{_('Sidebar')}}</th>
             <th>{{_('Actions')}}</th>
           </tr>
         </thead>
@@ -29,7 +29,9 @@
             <td>#{{ column.label }}</td>
             <td>{{ column.datatype }}</td>
             <td>{% if column.is_multiple %}{{_('Yes')}}{% else %}{{_('No')}}{% endif %}</td>
-            <td>{% if column.supported_in_cw %}{{_('Yes')}}{% else %}{{_('No')}}{% endif %}</td>
+            <td>
+              <input type="checkbox" class="sidebar-toggle" data-id="{{ column.id }}" {% if not column.supported_in_cw %}disabled{% endif %} {% if column.show_in_sidebar %}checked{% endif %}>
+            </td>
             <td>
               <button type="button" class="btn btn-xs btn-default edit-property" data-label="{{ column.label }}" data-name="{{ column.name }}">
                 <span class="glyphicon glyphicon-edit"></span> {{_('Edit')}}
@@ -152,6 +154,27 @@
             $('#editPropertyForm').attr('action', actionUrl);
             $('#edit_name').val(name);
             $('#editPropertyModal').modal('show');
+        });
+
+        $('.sidebar-toggle').on('change', function() {
+            var columnId = $(this).data('id');
+            var isChecked = $(this).prop('checked');
+            var url = "{{ url_for('admin.custom_property_toggle_sidebar', column_id=0) }}".replace('0', columnId);
+            
+            $.ajax({
+                type: 'POST',
+                url: url,
+                data: {
+                    csrf_token: "{{ csrf_token() }}",
+                    show_in_sidebar: isChecked
+                },
+                success: function() {
+                    // console.log('Successfully updated sidebar visibility');
+                },
+                error: function() {
+                    alert('{{_("Failed to update sidebar visibility")}}');
+                }
+            });
         });
     });
 </script>

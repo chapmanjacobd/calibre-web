@@ -137,8 +137,14 @@ def _get_calibredb_binary():
 
 def _render_custom_properties(form_data=None):
     custom_columns = calibre_db.session.query(db.CustomColumns).order_by(db.CustomColumns.id).all()
+    sidebar_settings = config.config_custom_sidebar_columns or {}
     for column in custom_columns:
         column.supported_in_cw = column.datatype not in db.cc_exceptions
+        str_id = str(column.id)
+        if str_id in sidebar_settings:
+            column.show_in_sidebar = sidebar_settings[str_id]
+        else:
+            column.show_in_sidebar = column.datatype in ('text', 'enumeration', 'rating')
     return render_title_template(
         "custom_properties.html",
         custom_columns=custom_columns,
@@ -417,6 +423,23 @@ def custom_property_edit(label):
     flash(_("Custom property %(name)s updated successfully.", name=new_name), category="success")
     return redirect(url_for('admin.custom_properties'))
 
+@admi.route("/admin/customproperty/toggle_sidebar/<int:column_id>", methods=["POST"])
+@user_login_required
+@admin_required
+def custom_property_toggle_sidebar(column_id):
+    column = calibre_db.session.query(db.CustomColumns).filter(db.CustomColumns.id == column_id).first()
+    if not column:
+        return "", 404
+        
+    val = request.form.get("show_in_sidebar") == "true"
+    sidebar_settings = config.config_custom_sidebar_columns or {}
+    # Create a new dict because SQLAlchemy JSON columns don't detect in-place dict modifications reliably
+    new_settings = dict(sidebar_settings)
+    new_settings[str(column.id)] = val
+    config.config_custom_sidebar_columns = new_settings
+    config.save()
+    
+    return "", 200
 
 @admi.route("/admin/config", methods=["GET"])
 @user_login_required

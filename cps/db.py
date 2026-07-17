@@ -1078,8 +1078,17 @@ class CalibreDB:
         return cc
 
     def get_browseable_cc_columns(self, config):
-        return [col for col in self.get_cc_columns(config, filter_config_custom_read=True)
-                if getattr(col, 'normalized', False) and col.datatype in ('text', 'enumeration', 'rating')]
+        sidebar_settings = config.config_custom_sidebar_columns or {}
+        browseable = []
+        for col in self.get_cc_columns(config, filter_config_custom_read=True):
+            str_id = str(col.id)
+            if str_id in sidebar_settings:
+                if sidebar_settings[str_id]:
+                    browseable.append(col)
+            else:
+                if getattr(col, 'normalized', False) and col.datatype in ('text', 'enumeration', 'rating'):
+                    browseable.append(col)
+        return browseable
 
     # read search results from calibre-database and return it (function is used for feed and simple search
     def get_search_results(self, term, config, offset=None, order=None, limit=None, *join):
