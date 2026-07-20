@@ -8,7 +8,7 @@ runs:
       shell: bash
       run: |
         python3 -m venv calibre-web-env
-        source calibre-web-env/bin/activate
+        echo "$GITHUB_WORKSPACE/calibre-web-env/bin" >> $GITHUB_PATH
     - name: Install Python dependencies for testing
       uses: py-actions/py-dependency-install@v4
       with:
