@@ -22,12 +22,12 @@
       </div>
       <div data-related="split_settings">
        <div class="form-group required input-group">
-        <input type="text" class="form-control" id="config_calibre_split_dir" name="config_calibre_split_dir" value="{% if config.config_calibre_split_dir != None %}{{ config.config_calibre_split_dir }}{% endif %}" autocomplete="off">
-        <span class="input-group-btn">
-          <button type="button" data-toggle="modal" id="calibre_modal_split_path" data-link="config_calibre_split_dir" data-filefilter="" data-target="#fileModal" id="book_path" class="btn btn-default"><span class="glyphicon glyphicon-folder-open"></span></button>
-        </span>
-      </div>
-      </div>
+         <input type="text" class="form-control" id="config_calibre_split_dir" name="config_calibre_split_dir" value="{% if config.config_calibre_split_dir != None %}{{ config.config_calibre_split_dir }}{% endif %}" autocomplete="off">
+         <span class="input-group-btn">
+           <button type="button" data-toggle="modal" id="calibre_modal_split_path" data-link="config_calibre_split_dir" data-filefilter="" data-target="#fileModal" id="book_path" class="btn btn-default"><span class="glyphicon glyphicon-folder-open"></span></button>
+         </span>
+       </div>
+       </div>
     {% if feature_support['gdrive'] %}
       <div class="form-group required">
         <input type="checkbox" id="config_use_google_drive" name="config_use_google_drive" data-control="gdrive_settings" {% if config.config_use_google_drive %}checked{% endif %} >

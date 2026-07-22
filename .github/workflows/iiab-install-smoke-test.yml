@@ -54,8 +54,9 @@ jobs:
         uses: browser-actions/setup-firefox@v1
       - run: firefox --version
       - name: Activate virtual environment
-        run: source bin/activate
-        working-directory: /usr/local/calibre-web-py3
+        run: |
+          sudo chown -R $USER /usr/local/calibre-web-py3
+          echo "/usr/local/calibre-web-py3/bin" >> $GITHUB_PATH
       - name: Install Python dependencies for testing
         uses: py-actions/py-dependency-install@v4
         with:

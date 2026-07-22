@@ -47,7 +47,8 @@ from .gdriveutils import getFileFromEbooksFolder, do_gdrive_download
 from .helper import check_valid_domain, check_email, check_username, \
     get_book_cover, get_series_cover_thumbnail, get_download_link, send_mail, generate_random_password, \
     send_registration_mail, check_send_to_ereader, check_read_formats, tags_filters, reset_password, valid_email, \
-    edit_book_read_status, valid_password
+    edit_book_read_status, valid_password, get_browseable_custom_column, format_custom_column_value, \
+    custom_column_page
 from .pagination import Pagination
 from .redirect import get_redirect_location
 from .cw_babel import get_available_locale
@@ -366,10 +367,40 @@ def get_matching_tags():
 def generate_char_list(entries): # data_colum, db_link):
     char_list = list()
     for entry in entries:
-        upper_char = entry[0].name[0].upper()
-        if upper_char not in char_list:
-            char_list.append(upper_char)
+        if entry[0].name:
+            upper_char = entry[0].name[0].upper()
+            if upper_char not in char_list:
+                char_list.append(upper_char)
     return char_list
+
+
+def get_custom_column_entries(column, order):
+    cc_class = db.cc_classes[column.id]
+    if getattr(column, 'normalized', False):
+        entries = (calibre_db.session.query(cc_class, func.count(db.Books.id).label('count'))
+                   .join(cc_class.books)
+                   .filter(calibre_db.common_filters())
+                   .group_by(cc_class.id)
+                   .order_by(order)
+                   .all())
+        formatted_entries = [[db.Category(format_custom_column_value(column, entry[0].value), entry[0].id), entry[1]]
+                             for entry in entries]
+    else:
+        entries = (calibre_db.session.query(cc_class.value, func.count(db.Books.id).label('count'))
+                   .join(cc_class.books)
+                   .filter(calibre_db.common_filters())
+                   .group_by(cc_class.value)
+                   .order_by(order)
+                   .all())
+        formatted_entries = [[db.Category(format_custom_column_value(column, entry[0]), str(entry[0])), entry[1]]
+                             for entry in entries]
+    no_value_count = (calibre_db.session.query(db.Books)
+                      .filter(~getattr(db.Books, custom_column_page(column.id)).any())
+                      .filter(calibre_db.common_filters())
+                      .count())
+    if no_value_count:
+        formatted_entries.append([db.Category(_("None"), "none"), no_value_count])
+    return formatted_entries
 
 
 def query_char_list(data_colum, db_link):
@@ -743,6 +774,64 @@ def render_category_books(page, book_id, order):
                                  title=_("Category: %(name)s", name=tagsname), page="category", order=order[1])
 
 
+@web.route("/customproperties/<int:column_id>/<book_id>", defaults={'page': 1})
+@web.route("/customproperties/<int:column_id>/<book_id>/page/<int:page>")
+@login_required_if_no_ano
+def custom_property_books(column_id, book_id, page):
+    column = get_browseable_custom_column(column_id)
+    if not column or not current_user.check_visibility(constants.SIDEBAR_CATEGORY):
+        abort(404)
+    page_key = custom_column_page(column_id)
+    sort_param = request.args.get('sort_param', 'stored').lower()
+    order = get_sort_function(sort_param, page_key)
+    relation = getattr(db.Books, page_key)
+    if book_id == 'none':
+        entries, random, pagination = calibre_db.fill_indexpage(page, 0,
+                                                                db.Books,
+                                                                ~relation.any(),
+                                                                [order[0][0], db.Series.name, db.Books.series_index],
+                                                                True, config.config_read_column,
+                                                                db.books_series_link,
+                                                                db.Books.id == db.books_series_link.c.book,
+                                                                db.Series)
+        value_name = _("None")
+    else:
+        if getattr(column, 'normalized', False):
+            value = calibre_db.session.query(db.cc_classes[column_id]).filter(db.cc_classes[column_id].id == book_id).first()
+            if not value:
+                abort(404)
+            val = value.value
+            filter_expr = relation.any(db.cc_classes[column_id].id == book_id)
+        else:
+            val = book_id
+            if column.datatype == 'bool':
+                val = (str(book_id).lower() == 'true')
+            elif column.datatype == 'int':
+                try: val = int(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'float':
+                try: val = float(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'datetime':
+                from datetime import datetime
+                try: val = datetime.strptime(book_id[:19], "%Y-%m-%d %H:%M:%S")
+                except ValueError: abort(404)
+            filter_expr = relation.any(db.cc_classes[column_id].value == val)
+
+        entries, random, pagination = calibre_db.fill_indexpage(page, 0,
+                                                                db.Books,
+                                                                filter_expr,
+                                                                [order[0][0], db.Series.name, db.Books.series_index],
+                                                                True, config.config_read_column,
+                                                                db.books_series_link,
+                                                                db.Books.id == db.books_series_link.c.book,
+                                                                db.Series)
+        value_name = format_custom_column_value(column, val)
+    return render_title_template('index.html', random=random, entries=entries, pagination=pagination, id=book_id,
+                                 title=_("%(column)s: %(name)s", column=column.name, name=value_name),
+                                 page=page_key, order=order[1])
+
+
 def render_language_books(page, name, order):
     try:
         if name.lower() != "none":
@@ -1046,6 +1135,27 @@ def publisher_list():
         abort(404)
 
 
+@web.route("/customproperties/<int:column_id>")
+@login_required_if_no_ano
+def custom_property_list(column_id):
+    column = get_browseable_custom_column(column_id)
+    if not column or not current_user.check_visibility(constants.SIDEBAR_CATEGORY):
+        abort(404)
+    page_key = custom_column_page(column_id)
+    if current_user.get_view_property(page_key, 'dir') == 'desc':
+        order = db.cc_classes[column_id].value.desc()
+        order_no = 0
+    else:
+        order = db.cc_classes[column_id].value.asc()
+        order_no = 1
+    entries = get_custom_column_entries(column, order)
+    entries = sorted(entries, key=lambda x: x[0].name.lower(), reverse=not order_no)
+    char_list = generate_char_list(entries)
+    return render_title_template('list.html', entries=entries, folder='web.custom_property_books', charlist=char_list,
+                                 title=column.name, page=page_key, data=page_key, order=order_no,
+                                 custom_column=column)
+
+
 @web.route("/series")
 @login_required_if_no_ano
 def series_list():
@@ -1101,19 +1211,20 @@ def ratings_list():
         else:
             order = db.Ratings.rating.asc()
             order_no = 1
-        entries = calibre_db.session.query(db.Ratings, func.count('books_ratings_link.book').label('count'),
-                                           (db.Ratings.rating / 2).label('name')) \
+        entries = calibre_db.session.query(db.Ratings, func.count('books_ratings_link.book').label('count')) \
             .join(db.books_ratings_link).join(db.Books).filter(calibre_db.common_filters()) \
             .filter(db.Ratings.rating > 0) \
             .group_by(text('books_ratings_link.rating')).order_by(order).all()
+        formatted_entries = [[db.Category('%.1f' % (entry[0].rating / 2), entry[0].id, rating=entry[0].rating), entry[1]]
+                             for entry in entries]
         no_rating_count = (calibre_db.session.query(db.Books)
                            .outerjoin(db.books_ratings_link).outerjoin(db.Ratings)
                            .filter(or_(db.Ratings.rating == None, db.Ratings.rating == 0))
                            .filter(calibre_db.common_filters())
                            .count())
         if no_rating_count:
-            entries.append([db.Category(_("None"), "-1", -1), no_rating_count])
-        entries = sorted(entries, key=lambda x: x[0].rating, reverse=not order_no)
+            formatted_entries.append([db.Category(_("None"), "-1", -1), no_rating_count])
+        entries = sorted(formatted_entries, key=lambda x: x[0].rating, reverse=not order_no)
         return render_title_template('list.html', entries=entries, folder='web.books_list', charlist=list(),
                                      title=_("Ratings list"), page="ratingslist", data="ratings", order=order_no)
     else:

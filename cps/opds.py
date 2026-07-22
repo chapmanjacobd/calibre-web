@@ -33,7 +33,8 @@ from sqlalchemy.exc import InvalidRequestError, OperationalError
 
 from . import logger, config, db, calibre_db, ub, isoLanguages, constants
 from .usermanagement import requires_basic_auth_if_no_ano, auth
-from .helper import get_download_link, get_book_cover
+from .helper import get_download_link, get_book_cover, \
+    get_browseable_custom_column, format_custom_column_value
 from .pagination import Pagination
 from .web import render_read_books
 
@@ -47,7 +48,7 @@ log = logger.create()
 @opds.route("/opds")
 @requires_basic_auth_if_no_ano
 def feed_index():
-    return render_xml_template('index.xml')
+    return render_xml_template('index.xml', custom_columns=calibre_db.get_browseable_cc_columns(config))
 
 
 @opds.route("/opds/osd")
@@ -243,6 +244,114 @@ def feed_letter_category(book_id):
 @requires_basic_auth_if_no_ano
 def feed_category(book_id):
     return render_xml_dataset(db.Tags, book_id)
+
+
+@opds.route("/opds/custom/<int:column_id>")
+@requires_basic_auth_if_no_ano
+def feed_custom_property_index(column_id):
+    column = get_browseable_custom_column(column_id)
+    if not column or not auth.current_user().check_visibility(constants.SIDEBAR_CATEGORY):
+        abort(404)
+    off = int(request.args.get("offset") or 0)
+    cc_class = db.cc_classes[column.id]
+    entries = (calibre_db.session.query(func.upper(func.substr(cc_class.value, 1, 1)).label('id'))
+               .join(cc_class.books)
+               .filter(calibre_db.common_filters())
+               .group_by(func.upper(func.substr(cc_class.value, 1, 1)))
+               .order_by(func.upper(func.substr(cc_class.value, 1, 1)))
+               .all())
+    elements = [{'id': "00", 'name': _("All")}]
+    elements.extend({'id': entry.id, 'name': entry.id} for entry in entries)
+    elements = elements[off:off + int(config.config_books_per_page)]
+    pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
+                            len(entries) + 1)
+    cc = calibre_db.get_cc_columns(config, filter_config_custom_read=True)
+    return render_xml_template('feed.xml', letterelements=elements, folder='opds.feed_custom_property_letter',
+                               pagination=pagination, cc=cc, custom_column=column)
+
+
+@opds.route("/opds/custom/<int:column_id>/letter/<book_id>")
+@requires_basic_auth_if_no_ano
+def feed_custom_property_letter(column_id, book_id):
+    column = get_browseable_custom_column(column_id)
+    if not column or not auth.current_user().check_visibility(constants.SIDEBAR_CATEGORY):
+        abort(404)
+    off = int(request.args.get("offset") or 0)
+    cc_class = db.cc_classes[column.id]
+    if getattr(column, 'normalized', False):
+        query = (calibre_db.session.query(cc_class)
+                 .join(cc_class.books)
+                 .filter(calibre_db.common_filters()))
+        if book_id != "00":
+            query = query.filter(func.upper(func.substr(cc_class.value, 1, 1)) == book_id)
+        entries = query.group_by(cc_class.id).order_by(cc_class.value)
+        entry_count = entries.count()
+        none_count = (calibre_db.session.query(db.Books)
+                      .filter(~getattr(db.Books, 'custom_column_' + str(column.id)).any())
+                      .filter(calibre_db.common_filters())
+                      .count())
+        pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
+                                entry_count + int(bool(none_count and book_id == "00")))
+        items = [db.Category(format_custom_column_value(column, entry.value), entry.id)
+                 for entry in entries.offset(off).limit(config.config_books_per_page).all()]
+    else:
+        query = (calibre_db.session.query(cc_class.value)
+                 .join(cc_class.books)
+                 .filter(calibre_db.common_filters()))
+        if book_id != "00":
+            query = query.filter(func.upper(func.substr(cc_class.value, 1, 1)) == book_id)
+        entries = query.group_by(cc_class.value).order_by(cc_class.value)
+        entry_count = entries.count()
+        none_count = (calibre_db.session.query(db.Books)
+                      .filter(~getattr(db.Books, 'custom_column_' + str(column.id)).any())
+                      .filter(calibre_db.common_filters())
+                      .count())
+        pagination = Pagination((int(off) / (int(config.config_books_per_page)) + 1), config.config_books_per_page,
+                                entry_count + int(bool(none_count and book_id == "00")))
+        items = [db.Category(format_custom_column_value(column, entry[0]), str(entry[0]))
+                 for entry in entries.offset(off).limit(config.config_books_per_page).all()]
+    if none_count and book_id == "00" and off <= entry_count < off + int(config.config_books_per_page):
+        items.append(db.Category(_("None"), "none"))
+    cc = calibre_db.get_cc_columns(config, filter_config_custom_read=True)
+    return render_xml_template('feed.xml', listelements=items, folder='opds.feed_custom_property',
+                               pagination=pagination, cc=cc, custom_column=column)
+
+
+@opds.route("/opds/custom/<int:column_id>/<book_id>")
+@requires_basic_auth_if_no_ano
+def feed_custom_property(column_id, book_id):
+    column = get_browseable_custom_column(column_id)
+    if not column or not auth.current_user().check_visibility(constants.SIDEBAR_CATEGORY):
+        abort(404)
+    off = int(request.args.get("offset") or 0)
+    relation = getattr(db.Books, 'custom_column_' + str(column.id))
+    if book_id == 'none':
+        db_filter = ~relation.any()
+    else:
+        if getattr(column, 'normalized', False):
+            db_filter = relation.any(db.cc_classes[column.id].id == book_id)
+        else:
+            val = book_id
+            if column.datatype == 'bool':
+                val = (str(book_id).lower() == 'true')
+            elif column.datatype == 'int':
+                try: val = int(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'float':
+                try: val = float(book_id)
+                except ValueError: abort(404)
+            elif column.datatype == 'datetime':
+                from datetime import datetime
+                try: val = datetime.strptime(book_id[:19], "%Y-%m-%d %H:%M:%S")
+                except ValueError: abort(404)
+            db_filter = relation.any(db.cc_classes[column.id].value == val)
+    entries, __, pagination = calibre_db.fill_indexpage((int(off) / (int(config.config_books_per_page)) + 1), 0,
+                                                        db.Books,
+                                                        db_filter,
+                                                        [db.Books.timestamp.desc()],
+                                                        True, config.config_read_column)
+    cc = calibre_db.get_cc_columns(config, filter_config_custom_read=True)
+    return render_xml_template('feed.xml', entries=entries, pagination=pagination, cc=cc, custom_column=column)
 
 
 @opds.route("/opds/series")

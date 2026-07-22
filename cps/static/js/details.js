@@ -89,6 +89,14 @@ $("#archived_cb").on("change", function() {
     $(this).closest("form").submit();
 });
 
+$(function() {
+    $("form[id^='toggle_cc_']").ajaxForm();
+});
+
+$(".toggle_cc_cb").on("change", function() {
+    $(this).closest("form").submit();
+});
+
 (function() {
     var templates = {
         add: _.template(
