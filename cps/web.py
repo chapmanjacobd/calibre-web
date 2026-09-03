@@ -1273,6 +1273,23 @@ def language_overview():
         abort(404)
 
 
+@web.route("/language/reset")
+@login_required_if_no_ano
+def reset_language_filter():
+    if current_user.filter_language() != "all":
+        current_user.default_language = "all"
+        if current_user.is_anonymous:
+            data = ub.session.query(ub.User).filter(
+                ub.User.role.op('&')(constants.ROLE_ANONYMOUS) == constants.ROLE_ANONYMOUS).first()
+            if data:
+                data.default_language = "all"
+        ub.session_commit()
+    referer = request.headers.get("Referer")
+    if referer:
+        return redirect(referer)
+    return redirect(url_for('web.index'))
+
+
 @web.route("/category")
 @login_required_if_no_ano
 def category_list():

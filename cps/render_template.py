@@ -19,12 +19,12 @@
 from flask import g, abort, request, url_for, render_template
 from flask_themes2 import render_theme_template
 from jinja2 import TemplateNotFound
-from flask_babel import gettext as _
+from flask_babel import gettext as _, get_locale
 from werkzeug.local import LocalProxy
 from .cw_login import current_user
 from sqlalchemy.sql.expression import or_
 
-from . import config, constants, logger, ub, themes
+from . import config, constants, isoLanguages, logger, ub, themes
 from .ub import User
 
 
@@ -102,9 +102,13 @@ def get_sidebar_config(kwargs=None):
          "visibility": constants.SIDEBAR_PUBLISHER, 'public': True, "page": "publisher", "no_param":True,
          "show_text": _('Show Publisher Section'), "config_show":True})
     sidebar.append({"glyph": "glyphicon-flag", "text": _('Languages'), "link": 'web.language_overview', "id": "lang",
-                    "visibility": constants.SIDEBAR_LANGUAGE, 'public': (current_user.filter_language() == 'all'),
+                    "visibility": constants.SIDEBAR_LANGUAGE, 'public': True,
                     "page": "language", "no_param":True,
-                    "show_text": _('Show Language Section'), "config_show": True})
+                    "show_text": _('Show Language Section'), "config_show": True,
+                    "badge": isoLanguages.get_language_name(get_locale(), current_user.filter_language())
+                    if current_user.filter_language() != 'all' else None,
+                    "reset_link": 'web.reset_language_filter'
+                    if current_user.filter_language() != 'all' else None})
     sidebar.append({"glyph": "glyphicon-star-empty", "text": _('Ratings'), "link": 'web.ratings_list', "id": "rate",
                     "visibility": constants.SIDEBAR_RATING, 'public': True, "no_param":True,
                     "page": "rating", "show_text": _('Show Ratings Section'), "config_show": True})
